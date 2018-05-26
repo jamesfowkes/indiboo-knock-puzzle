@@ -1,5 +1,6 @@
 #include <util/atomic.h>
 #include <Adafruit_NeoPixel.h>
+#include <TaskAction.h>
 
 #include "PinChangeInterrupt.h"
 
@@ -34,7 +35,7 @@ static const KNOCK VALID_COMBINATION[NUMBER_OF_KNOCKS] = {SOFT_KNOCK, SOFT_KNOCK
 static const uint8_t SOFT_KNOCK_PIN = 4;
 static const uint8_t HARD_KNOCK_PIN = 3;
 
-static const uint16_t TIMER_RELOAD = 1000;
+static const uint16_t TIMER_RELOAD = 500;
 
 static const char * STATE_STRINGS[] = {
 	"Idle",
@@ -210,8 +211,19 @@ static bool check_and_clear(bool &flag)
 static void end_game()
 {
 	Serial.println("GAME END");
+	s_pixels.setPixelColor(0, s_pixels.Color(0,64,0));
+	s_pixels.setPixelColor(1, s_pixels.Color(0,64,0));
+	s_pixels.show();
 	while(1) {}
 }
+
+static void debug_task_fn(TaskAction*task)
+{
+	(void)task;
+	static bool led = false;
+	digitalWrite(13, led=!led);
+}
+static TaskAction s_debug_task(debug_task_fn, 500, INFINITE_TICKS);
 
 void setup()
 {
@@ -220,17 +232,20 @@ void setup()
 
 	Serial.begin(115200);
     s_pixels.begin();
-
-	delay(2000);
+    pinMode(13, OUTPUT);
+	delay(200);
 }
-
 
 static unsigned long last_millis = 0;
 void loop()
 {
-	if (last_millis != millis())
+	unsigned long now = millis();
+
+	s_debug_task.tick();
+
+	if (last_millis != now)
 	{
-		last_millis = millis();
+		last_millis = now;
 		if (s_timer)
 		{
 			if (--s_timer == 0)
