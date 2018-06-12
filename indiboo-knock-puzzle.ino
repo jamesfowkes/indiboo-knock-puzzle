@@ -218,7 +218,7 @@ static void end_game()
 	s_pixels.setPixelColor(1, s_pixels.Color(0,64,0));
 	s_pixels.show();
 
-	digitalWrite(RELAY_PIN, HIGH);
+	digitalWrite(RELAY_PIN, LOW);
 	while(1) {}
 }
 
@@ -236,10 +236,11 @@ void setup()
 	attachPCINT(digitalPinToPCINT(HARD_KNOCK_PIN), hard_knock_isr, RISING);
 
 	pinMode(RELAY_PIN, OUTPUT);
-
+  digitalWrite(RELAY_PIN, HIGH);
 	Serial.begin(115200);
-    s_pixels.begin();
-    pinMode(13, OUTPUT);
+  s_pixels.begin();
+  pinMode(13, OUTPUT);
+  
 	delay(200);
 }
 
