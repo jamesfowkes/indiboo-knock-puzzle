@@ -35,6 +35,9 @@ static const KNOCK VALID_COMBINATION[NUMBER_OF_KNOCKS] = {SOFT_KNOCK, SOFT_KNOCK
 static const uint8_t SOFT_KNOCK_PIN = 4;
 static const uint8_t HARD_KNOCK_PIN = 3;
 
+static const uint8_t RELAY_PIN = 2;
+static const uint8_t NEOPIXEL_PIN = 8;
+
 static const uint16_t TIMER_RELOAD = 500;
 
 static const char * STATE_STRINGS[] = {
@@ -52,7 +55,7 @@ static bool s_valid_knock_flag = false;
 
 static uint16_t s_timer = 0;
 
-static Adafruit_NeoPixel s_pixels = Adafruit_NeoPixel(2, 12, NEO_GRB + NEO_KHZ800);
+static Adafruit_NeoPixel s_pixels = Adafruit_NeoPixel(2, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 static void print_history( KNOCK * history)
 {
@@ -214,6 +217,8 @@ static void end_game()
 	s_pixels.setPixelColor(0, s_pixels.Color(0,64,0));
 	s_pixels.setPixelColor(1, s_pixels.Color(0,64,0));
 	s_pixels.show();
+
+	digitalWrite(RELAY_PIN, HIGH);
 	while(1) {}
 }
 
@@ -229,6 +234,8 @@ void setup()
 {
 	attachPCINT(digitalPinToPCINT(SOFT_KNOCK_PIN), soft_knock_isr, RISING);
 	attachPCINT(digitalPinToPCINT(HARD_KNOCK_PIN), hard_knock_isr, RISING);
+
+	pinMode(RELAY_PIN, OUTPUT);
 
 	Serial.begin(115200);
     s_pixels.begin();
