@@ -9,17 +9,17 @@
 
 #include "game-ethernet.h"
 
-enum knock
+enum knock_source
 {
-	SOFT_KNOCK,
-	HARD_KNOCK,
+	KNOCK_SENSOR_1,
+	KNOCK_SENSOR_2,
 };
-typedef enum knock KNOCK;
+typedef enum knock_source KNOCK_SOURCE;
 
 enum knock_event
 {
-	KNOCK_EVENT_SOFT_KNOCK,
-	KNOCK_EVENT_HARD_KNOCK,
+	KNOCK_EVENT_KNOCK_SENSOR_1,
+	KNOCK_EVENT_KNOCK_SENSOR_2,
 	KNOCK_EVENT_TIMEOUT
 };
 typedef enum knock_event KNOCK_EVENT;
@@ -27,9 +27,8 @@ typedef enum knock_event KNOCK_EVENT;
 enum knock_state
 {
 	KNOCK_STATE_IDLE,
-	KNOCK_STATE_SOFT_SHORT_TIMER,
-	KNOCK_STATE_SOFT,
-	KNOCK_STATE_HARD,
+	KNOCK_STATE_SENSOR_1,
+	KNOCK_STATE_SENSOR_2
 };
 typedef enum knock_state KNOCK_STATE;
 
@@ -42,11 +41,11 @@ typedef enum game_state GAME_STATE;
 
 static const uint8_t NUMBER_OF_KNOCKS = 6;
 
-static const KNOCK VALID_COMBINATION[NUMBER_OF_KNOCKS] = {SOFT_KNOCK, SOFT_KNOCK, SOFT_KNOCK, HARD_KNOCK, HARD_KNOCK, HARD_KNOCK};
-static const KNOCK RESET_COMBINATION[NUMBER_OF_KNOCKS] = {SOFT_KNOCK, SOFT_KNOCK, SOFT_KNOCK, HARD_KNOCK, HARD_KNOCK, HARD_KNOCK};
+static const KNOCK_SOURCE VALID_COMBINATION[NUMBER_OF_KNOCKS] = {KNOCK_SENSOR_1, KNOCK_SENSOR_1, KNOCK_SENSOR_1, KNOCK_SENSOR_2, KNOCK_SENSOR_2, KNOCK_SENSOR_2};
+static const KNOCK_SOURCE RESET_COMBINATION[NUMBER_OF_KNOCKS] = {KNOCK_SENSOR_1, KNOCK_SENSOR_2, KNOCK_SENSOR_1, KNOCK_SENSOR_2};
 
-static const uint8_t SOFT_KNOCK_PIN = 4;
-static const uint8_t HARD_KNOCK_PIN = 3;
+static const uint8_t KNOCK_SENSOR_1_PIN = 4;
+static const uint8_t KNOCK_SENSOR_2_PIN = 3;
 
 static const uint8_t RELAY_PIN = 2;
 static const uint8_t NEOPIXEL_PIN = 8;
@@ -56,13 +55,13 @@ static const uint16_t TIMER_RELOAD = 500;
 static const char * STATE_STRINGS[] = {
 	"Idle",
 	"ShortTimer",
-	"Soft",
-	"Hard"
+	"Sensor1",
+	"Sensor2"
 };
 
 static KNOCK_STATE s_knock_state = KNOCK_STATE_IDLE;
-static KNOCK s_last_knock;
-static KNOCK s_knock_history[NUMBER_OF_KNOCKS] = {-1,-1,-1,-1,-1,-1};
+static KNOCK_SOURCE s_last_knock;
+static KNOCK_SOURCE s_knock_history[NUMBER_OF_KNOCKS] = {-1,-1,-1,-1,-1,-1};
 
 static bool s_valid_knock_flag = false;
 
@@ -72,7 +71,7 @@ static Adafruit_NeoPixel s_pixels = Adafruit_NeoPixel(2, NEOPIXEL_PIN, NEO_GRB +
 
 static GAME_STATE s_game_state = GAME_STATE_PLAYING;
 
-static void print_history( KNOCK * history)
+static void print_history(KNOCK_SOURCE * history)
 {
 	for(uint8_t i = 0; i < NUMBER_OF_KNOCKS; i++)
 	{
@@ -82,7 +81,7 @@ static void print_history( KNOCK * history)
 	Serial.println("");
 }
 
-static bool match_history(KNOCK * knocks1, KNOCK * knocks2)
+static bool match_history(KNOCK_SOURCE * knocks1, KNOCK_SOURCE * knocks2)
 {
 	bool match = true;
 	for(uint8_t i = 0; i < NUMBER_OF_KNOCKS-1; i++)
@@ -92,7 +91,7 @@ static bool match_history(KNOCK * knocks1, KNOCK * knocks2)
 	return match;
 }
 
-static void record_knock(KNOCK knock, KNOCK * history)
+static void record_knock(KNOCK_SOURCE knock, KNOCK_SOURCE * history)
 {
 	for(uint8_t i = 0; i < NUMBER_OF_KNOCKS-1; i++)
 	{
@@ -105,7 +104,7 @@ static void start_knock_timer(uint16_t timeout)
 	s_timer = timeout;
 }
 
-static void handle_valid_knock(KNOCK knock)
+static void handle_valid_knock(KNOCK_SOURCE knock)
 {
 	s_last_knock = knock;
 	s_valid_knock_flag = true;
@@ -117,53 +116,29 @@ static KNOCK_STATE handle_knock_event_in_idle(KNOCK_EVENT knock_event)
 	KNOCK_STATE new_state = KNOCK_STATE_IDLE;
 	switch(knock_event)
 	{
-	case KNOCK_EVENT_SOFT_KNOCK:
-		start_knock_timer(5);
-		new_state = KNOCK_STATE_SOFT_SHORT_TIMER;
-		break;
-
-	case KNOCK_EVENT_HARD_KNOCK:
+	case KNOCK_EVENT_KNOCK_SENSOR_1:
 		start_knock_timer(TIMER_RELOAD);
-		handle_valid_knock(HARD_KNOCK);
-		new_state = KNOCK_STATE_HARD;
+		handle_valid_knock(KNOCK_SENSOR_1);
+		new_state = KNOCK_STATE_SENSOR_1;
 		break;
-		
+	case KNOCK_EVENT_KNOCK_SENSOR_2:
+		start_knock_timer(TIMER_RELOAD);
+		handle_valid_knock(KNOCK_SENSOR_2);
+		new_state = KNOCK_STATE_SENSOR_2;
+		break;
 	default:
 		break;
 	}
 	return new_state;
 }
 
-static KNOCK_STATE handle_knock_event_in_short_timer(KNOCK_EVENT knock_event)
+static KNOCK_STATE handle_knock_event_in_sensor_1(KNOCK_EVENT knock_event)
 {
-	KNOCK_STATE new_state = KNOCK_STATE_SOFT_SHORT_TIMER;
-	switch(knock_event)
-	{
-	case KNOCK_EVENT_HARD_KNOCK:
-		start_knock_timer(TIMER_RELOAD);
-		handle_valid_knock(HARD_KNOCK);
-		new_state = KNOCK_STATE_HARD;
-		break;
-		
-	case KNOCK_EVENT_TIMEOUT:
-		start_knock_timer(TIMER_RELOAD);
-		handle_valid_knock(SOFT_KNOCK);
-		new_state = KNOCK_STATE_SOFT;
-		break;
-			
-	default:
-		break;
-	}
-	return new_state;
+	return (knock_event == KNOCK_EVENT_TIMEOUT) ? KNOCK_STATE_IDLE : KNOCK_STATE_SENSOR_1;
 }
-
-static KNOCK_STATE handle_knock_event_in_soft(KNOCK_EVENT knock_event)
+static KNOCK_STATE handle_knock_event_in_sensor_2(KNOCK_EVENT knock_event)
 {
-	return (knock_event == KNOCK_EVENT_TIMEOUT) ? KNOCK_STATE_IDLE : KNOCK_STATE_SOFT;
-}
-static KNOCK_STATE handle_knock_event_in_soft_hard(KNOCK_EVENT knock_event)
-{
-	return (knock_event == KNOCK_EVENT_TIMEOUT) ? KNOCK_STATE_IDLE : KNOCK_STATE_HARD;
+	return (knock_event == KNOCK_EVENT_TIMEOUT) ? KNOCK_STATE_IDLE : KNOCK_STATE_SENSOR_2;
 }
 
 static void knock_state_handler(KNOCK_EVENT knock_event)
@@ -174,14 +149,12 @@ static void knock_state_handler(KNOCK_EVENT knock_event)
 	case KNOCK_STATE_IDLE:
 		new_state = handle_knock_event_in_idle(knock_event);
 		break;
-	case KNOCK_STATE_SOFT_SHORT_TIMER:
-		new_state = handle_knock_event_in_short_timer(knock_event);
 		break;
-	case KNOCK_STATE_SOFT:
-		new_state = handle_knock_event_in_soft(knock_event);
+	case KNOCK_STATE_SENSOR_1:
+		new_state = handle_knock_event_in_sensor_1(knock_event);
 		break;
-	case KNOCK_STATE_HARD:
-		new_state = handle_knock_event_in_soft_hard(knock_event);
+	case KNOCK_STATE_SENSOR_2:
+		new_state = handle_knock_event_in_sensor_2(knock_event);
 		break;
 	}
 
@@ -192,20 +165,20 @@ static void knock_state_handler(KNOCK_EVENT knock_event)
 	}
 }
 
-static void soft_knock_isr()
+static void KNOCK_SENSOR_2_isr()
 {
-	knock_state_handler(KNOCK_EVENT_SOFT_KNOCK);
+	knock_state_handler(KNOCK_EVENT_KNOCK_SENSOR_2);
 }
 
-static void hard_knock_isr()
+static void KNOCK_SENSOR_1_isr()
 {
-	knock_state_handler(KNOCK_EVENT_HARD_KNOCK);
+	knock_state_handler(KNOCK_EVENT_KNOCK_SENSOR_1);
 }
 
-static void set_pixels_from_knock_states(Adafruit_NeoPixel& pixels, KNOCK knock)
+static void set_pixels_from_knock_states(Adafruit_NeoPixel& pixels, KNOCK_SOURCE knock)
 {
-	pixels.setPixelColor(0, knock==SOFT_KNOCK ? pixels.Color(64,0,0) : pixels.Color(0,0,0));
-	pixels.setPixelColor(1, knock==HARD_KNOCK ? pixels.Color(64,0,0) : pixels.Color(0,0,0));
+	pixels.setPixelColor(0, knock==KNOCK_SENSOR_1 ? pixels.Color(64,0,0) : pixels.Color(0,0,0));
+	pixels.setPixelColor(1, knock==KNOCK_SENSOR_2 ? pixels.Color(64,0,0) : pixels.Color(0,0,0));
 	pixels.show();
 }
 
@@ -282,8 +255,8 @@ static http_get_handler s_handlers[] =
 
 void setup()
 {
-	attachPCINT(digitalPinToPCINT(SOFT_KNOCK_PIN), soft_knock_isr, RISING);
-	attachPCINT(digitalPinToPCINT(HARD_KNOCK_PIN), hard_knock_isr, RISING);
+	attachPCINT(digitalPinToPCINT(KNOCK_SENSOR_2_PIN), KNOCK_SENSOR_2_isr, RISING);
+	attachPCINT(digitalPinToPCINT(KNOCK_SENSOR_1_PIN), KNOCK_SENSOR_1_isr, RISING);
 
 	ethernet_setup(s_handlers);
 
