@@ -261,9 +261,11 @@ void setup()
 	ethernet_setup(s_handlers);
 
 	pinMode(RELAY_PIN, OUTPUT);
-
+	digitalWrite(RELAY_PIN, HIGH);
 	Serial.begin(115200);
+
     s_pixels.begin();
+
 	delay(200);
 }
 
