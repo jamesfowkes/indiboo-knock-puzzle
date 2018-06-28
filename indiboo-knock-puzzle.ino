@@ -213,6 +213,7 @@ static bool check_and_clear(bool &flag)
 static void end_game()
 {
 	Serial.println("GAME END");
+<<<<<<< HEAD
 	flash_pixels(s_pixels, 0, 64, 0, 500);
 	digitalWrite(RELAY_PIN, HIGH);
 	s_game_state = GAME_STATE_WON;
@@ -224,6 +225,14 @@ static void reset_game()
 	flash_pixels(s_pixels, 0, 0, 64, 500);
 	digitalWrite(RELAY_PIN, LOW);
 	s_game_state = GAME_STATE_PLAYING;
+=======
+	s_pixels.setPixelColor(0, s_pixels.Color(0,64,0));
+	s_pixels.setPixelColor(1, s_pixels.Color(0,64,0));
+	s_pixels.show();
+
+	digitalWrite(RELAY_PIN, LOW);
+	while(1) {}
+>>>>>>> aa2674a71002ea060645152efce4d95eea5768cc
 }
 
 static void debug_task_fn(TaskAction*task)
@@ -261,9 +270,11 @@ void setup()
 	ethernet_setup(s_handlers);
 
 	pinMode(RELAY_PIN, OUTPUT);
-
+	digitalWrite(RELAY_PIN, HIGH);
 	Serial.begin(115200);
+
     s_pixels.begin();
+
 	delay(200);
 }
 
