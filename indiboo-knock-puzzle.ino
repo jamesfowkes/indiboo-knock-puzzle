@@ -4,6 +4,11 @@
 
 #include "PinChangeInterrupt.h"
 
+#include "fixed-length-accumulator.h"
+#include "very-tiny-http.h"
+
+#include "game-ethernet.h"
+
 enum knock
 {
 	SOFT_KNOCK,
@@ -28,9 +33,17 @@ enum knock_state
 };
 typedef enum knock_state KNOCK_STATE;
 
+enum game_state
+{
+	GAME_STATE_PLAYING,
+	GAME_STATE_WON
+};
+typedef enum game_state GAME_STATE;
+
 static const uint8_t NUMBER_OF_KNOCKS = 6;
 
 static const KNOCK VALID_COMBINATION[NUMBER_OF_KNOCKS] = {SOFT_KNOCK, SOFT_KNOCK, SOFT_KNOCK, HARD_KNOCK, HARD_KNOCK, HARD_KNOCK};
+static const KNOCK RESET_COMBINATION[NUMBER_OF_KNOCKS] = {SOFT_KNOCK, SOFT_KNOCK, SOFT_KNOCK, HARD_KNOCK, HARD_KNOCK, HARD_KNOCK};
 
 static const uint8_t SOFT_KNOCK_PIN = 4;
 static const uint8_t HARD_KNOCK_PIN = 3;
@@ -56,6 +69,8 @@ static bool s_valid_knock_flag = false;
 static uint16_t s_timer = 0;
 
 static Adafruit_NeoPixel s_pixels = Adafruit_NeoPixel(2, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
+static GAME_STATE s_game_state = GAME_STATE_PLAYING;
 
 static void print_history( KNOCK * history)
 {
@@ -200,6 +215,17 @@ static void clear_pixels(Adafruit_NeoPixel& pixels)
 	pixels.show();
 }
 
+static void flash_pixels(Adafruit_NeoPixel& pixels, uint8_t r, uint8_t g, uint8_t b, uint16_t duration)
+{
+	pixels.setPixelColor(0, r, g, b);
+	pixels.setPixelColor(1, r, g, b);
+	pixels.show();
+	delay(duration);
+	pixels.setPixelColor(0, 0, 0, 0);
+	pixels.setPixelColor(1, 0, 0, 0);
+	pixels.show();
+}
+
 static bool check_and_clear(bool &flag)
 {
 	bool value;
@@ -214,32 +240,57 @@ static bool check_and_clear(bool &flag)
 static void end_game()
 {
 	Serial.println("GAME END");
-	s_pixels.setPixelColor(0, s_pixels.Color(0,64,0));
-	s_pixels.setPixelColor(1, s_pixels.Color(0,64,0));
-	s_pixels.show();
-
+	flash_pixels(s_pixels, 0, 64, 0, 500);
 	digitalWrite(RELAY_PIN, HIGH);
-	while(1) {}
+	s_game_state = GAME_STATE_WON;
+}
+
+static void reset_game()
+{
+	Serial.println("GAME RESET");
+	flash_pixels(s_pixels, 0, 0, 64, 500);
+	digitalWrite(RELAY_PIN, LOW);
+	s_game_state = GAME_STATE_PLAYING;
 }
 
 static void debug_task_fn(TaskAction*task)
 {
 	(void)task;
-	static bool led = false;
-	digitalWrite(13, led=!led);
 }
 static TaskAction s_debug_task(debug_task_fn, 500, INFINITE_TICKS);
+
+static void send_standard_erm_response()
+{
+    http_server_set_response_code("200 OK");
+    http_server_set_header("Access-Control-Allow-Origin", "*");
+    http_server_finish_headers();
+}
+
+static void win_handler(char const * const url)
+{
+    (void)url;
+    Serial.println(F("Handling /win"));
+    send_standard_erm_response();
+    end_game();
+}
+
+static http_get_handler s_handlers[] = 
+{
+    {"/win", win_handler},
+    {"", NULL}
+};
 
 void setup()
 {
 	attachPCINT(digitalPinToPCINT(SOFT_KNOCK_PIN), soft_knock_isr, RISING);
 	attachPCINT(digitalPinToPCINT(HARD_KNOCK_PIN), hard_knock_isr, RISING);
 
+	ethernet_setup(s_handlers);
+
 	pinMode(RELAY_PIN, OUTPUT);
 
 	Serial.begin(115200);
     s_pixels.begin();
-    pinMode(13, OUTPUT);
 	delay(200);
 }
 
@@ -249,7 +300,8 @@ void loop()
 	unsigned long now = millis();
 
 	s_debug_task.tick();
-
+	ethernet_tick();
+	
 	if (last_millis != now)
 	{
 		last_millis = now;
@@ -274,9 +326,20 @@ void loop()
 	if (check_and_clear(s_valid_knock_flag))
 	{
 		print_history(s_knock_history);
-		if (match_history(s_knock_history, VALID_COMBINATION))
+		switch(s_game_state)
 		{
-			end_game();
+		case GAME_STATE_PLAYING:
+			if (match_history(s_knock_history, VALID_COMBINATION))
+			{
+				end_game();
+			}
+			break;
+		case GAME_STATE_WON:
+			if (match_history(s_knock_history, RESET_COMBINATION))
+			{
+				reset_game();
+			}
+			break;
 		}
 	}
 }
