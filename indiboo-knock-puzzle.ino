@@ -248,9 +248,18 @@ static void win_handler(char const * const url)
     end_game();
 }
 
+static void reset_handler(char const * const url)
+{
+    (void)url;
+    Serial.println(F("Handling /reset"));
+    send_standard_erm_response();
+    reset_game();
+}
+
 static http_get_handler s_handlers[] = 
 {
     {"/win", win_handler},
+    {"/reset", reset_handler},
     {"", NULL}
 };
 
