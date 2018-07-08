@@ -5,7 +5,7 @@
 
 static const uint16_t BUF_SIZE = 256;
 static const uint8_t MAC_ADDRESS[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-static const uint8_t IP_ADDRESS[] = {192, 168, 0, 64};
+static const uint8_t IP_ADDRESS[] = {192, 168, 0, 103};
 static const uint8_t GATEWAY[] = {255, 255, 255, 0};
 
 byte Ethernet::buffer[BUF_SIZE];
