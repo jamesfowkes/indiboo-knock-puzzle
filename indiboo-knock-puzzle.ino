@@ -53,6 +53,7 @@ static const uint8_t RELAY_PIN = 2;
 static const uint8_t NEOPIXEL_PIN = 8;
 
 static const uint16_t TIMER_RELOAD = 500;
+static const uint16_t HISTORY_TIMEOUT = 10000;
 
 static const char * STATE_STRINGS[] = {
     "Idle",
@@ -66,11 +67,27 @@ static KNOCK_SOURCE s_knock_history[NUMBER_OF_KNOCKS_IN_HISTORY] = {-1,-1,-1,-1,
 
 static bool s_valid_knock_flag = false;
 
-static uint16_t s_timer = 0;
+static uint16_t s_knock_timer = 0;
+static uint16_t s_reset_history_timer = 0;
 
 static Adafruit_NeoPixel s_pixels = Adafruit_NeoPixel(2, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 static GAME_STATE s_game_state = GAME_STATE_PLAYING;
+
+static void print_timeout(uint16_t timeout)
+{
+    Serial.print("Timeout: ");
+    Serial.println(timeout);
+}
+
+static void reset_history(KNOCK_SOURCE * history)
+{
+    for(uint8_t i = 0; i < NUMBER_OF_KNOCKS_IN_HISTORY; i++)
+    {
+        history[i] = -1;
+    }
+    Serial.println("");
+}
 
 static void print_history(KNOCK_SOURCE * history)
 {
@@ -100,15 +117,22 @@ static void record_knock(KNOCK_SOURCE knock, KNOCK_SOURCE * history)
     }
     history[0] = knock;
 }
+
+static void reset_history_timer(uint16_t timeout)
+{
+    s_reset_history_timer = timeout;
+}
+
 static void start_knock_timer(uint16_t timeout)
 {
-    s_timer = timeout;
+    s_knock_timer = timeout;
 }
 
 static void handle_valid_knock(KNOCK_SOURCE knock)
 {
     s_last_knock = knock;
     s_valid_knock_flag = true;
+    reset_history_timer(HISTORY_TIMEOUT);
     record_knock(knock, s_knock_history);
 }
 
@@ -282,16 +306,24 @@ void loop()
     if (last_millis != now)
     {
         last_millis = now;
-        if (s_timer)
+        if (s_knock_timer)
         {
-            if (--s_timer == 0)
+            if (--s_knock_timer == 0)
             {
                 knock_state_handler(KNOCK_EVENT_TIMEOUT);
             }
         }
+
+        if ((s_game_state == GAME_STATE_PLAYING) && s_reset_history_timer)
+        {
+            if (--s_reset_history_timer == 0)
+            {
+                reset_history(s_knock_history);
+            }
+        }
     }
 
-    if (s_timer)
+    if (s_knock_timer)
     {
         set_pixels_from_knock_states(s_pixels, s_last_knock);
     }
@@ -303,6 +335,8 @@ void loop()
     if (check_and_clear(s_valid_knock_flag))
     {
         print_history(s_knock_history);
+        print_timeout(s_reset_history_timer);
+
         switch(s_game_state)
         {
         case GAME_STATE_PLAYING:
