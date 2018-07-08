@@ -329,3 +329,47 @@ void loop()
         }
     }
 }
+
+static void handle_serial_cmd(char const * const cmd)
+{
+    if (cmd[0] == '/')
+    {
+        http_get_handler * pHandler = http_server_match_handler_url(cmd, s_handlers);
+        if (pHandler)
+        {
+            pHandler->fn(cmd);
+        }
+        else
+        {
+            Serial.println("No matching URL");
+        }
+    }
+    else
+    {
+        Serial.print("Command '");
+        Serial.print(cmd);
+        Serial.println("' unknown");
+    }
+}
+
+static char s_serial_buffer[64];
+static uint8_t s_bufidx = 0;
+
+void serialEvent()
+{
+    while (Serial.available())
+    {
+        char c  = Serial.read();
+        if (c == '\n')
+        {
+            handle_serial_cmd(s_serial_buffer);
+            s_bufidx = 0;
+            s_serial_buffer[0] = '\0';
+        }
+        else
+        {
+            s_serial_buffer[s_bufidx++] = c;
+            s_serial_buffer[s_bufidx] = '\0';
+        }
+    }
+}
