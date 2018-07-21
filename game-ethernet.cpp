@@ -4,8 +4,8 @@
 #include "very-tiny-http.h"
 
 static const uint16_t BUF_SIZE = 256;
-static const uint8_t MAC_ADDRESS[] = { 0xCA, 0xFE, 0xE5, 0xCA, 0xBE, 0x02 };
-static const uint8_t IP_ADDRESS[] = {192, 168, 0, 102};
+static const uint8_t MAC_ADDRESS[] = { 0xCA, 0xFE, 0xE5, 0xCA, 0xBE, 0x03 };
+static const uint8_t IP_ADDRESS[] = {192, 168, 0, 103};
 static const uint8_t GATEWAY[] = {255, 255, 255, 0};
 
 byte Ethernet::buffer[BUF_SIZE];

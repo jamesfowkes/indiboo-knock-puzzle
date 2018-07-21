@@ -86,7 +86,6 @@ static void reset_history(KNOCK_SOURCE * history)
     {
         history[i] = -1;
     }
-    Serial.println("");
 }
 
 static void print_history(KNOCK_SOURCE * history)
@@ -174,7 +173,6 @@ static void knock_state_handler(KNOCK_EVENT knock_event)
     case KNOCK_STATE_IDLE:
         new_state = handle_knock_event_in_idle(knock_event);
         break;
-        break;
     case KNOCK_STATE_SENSOR_1:
         new_state = handle_knock_event_in_sensor_1(knock_event);
         break;
@@ -235,20 +233,24 @@ static bool check_and_clear(bool &flag)
     return value;
 }
 
+static void reset_game()
+{
+    Serial.println("GAME RESET");
+    flash_pixels(s_pixels, 0, 0, 64, 500);
+    digitalWrite(RELAY_PIN, HIGH);
+    reset_history(s_knock_history);
+    s_game_state = GAME_STATE_PLAYING;
+}
+
 static void end_game()
 {
     Serial.println("GAME END");
     flash_pixels(s_pixels, 0, 64, 0, 500);
     digitalWrite(RELAY_PIN, LOW);
     s_game_state = GAME_STATE_WON;
-}
-
-static void reset_game()
-{
-    Serial.println("GAME RESET");
-    flash_pixels(s_pixels, 0, 0, 64, 500);
+    delay(2000);
     digitalWrite(RELAY_PIN, HIGH);
-    s_game_state = GAME_STATE_PLAYING;
+    reset_game();
 }
 
 static void debug_task_fn(TaskAction*task)
@@ -318,6 +320,7 @@ void loop()
         {
             if (--s_reset_history_timer == 0)
             {
+                Serial.println("Resetting history.");
                 reset_history(s_knock_history);
             }
         }
